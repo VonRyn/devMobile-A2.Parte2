@@ -54,7 +54,7 @@ fun AppNavigation(model: GithubViewModel = viewModel()) {
         topBar = {
             if (rotaAtual == Rotas.REPOSITORIOS) {
                 RepositoriosTopBar(onVoltar = { navInterno.popBackStack() })
-            } else if (rotaAtual != null && rotaAtual !in listOf(Rotas.HOME, Rotas.EXPLORAR, Rotas.CRIAR, Rotas.CRIAR_ISSUE, Rotas.EDITAR, Rotas.EDITAR_ISSUE, Rotas.DETALHES_REPOSITORIO, Rotas.ISSUES)) {
+            } else if (rotaAtual != null && rotaAtual !in listOf(Rotas.HOME, Rotas.EXPLORAR, Rotas.CRIAR, Rotas.CRIAR_ISSUE, Rotas.EDITAR, Rotas.EDITAR_ISSUE, Rotas.DETALHES_REPOSITORIO, Rotas.DETALHES_ISSUE, Rotas.ISSUES)) {
             TopAppBar(title = { Text(titulo) }, navigationIcon = {
                 IconButton(onClick = { navInterno.popBackStack() }) {
                     Icon(Icons.AutoMirrored.Filled.ArrowBack, "Voltar")
@@ -100,7 +100,11 @@ fun AppNavigation(model: GithubViewModel = viewModel()) {
                 )
             }
             composable(Rotas.REPOSITORIOS) { RepositoriosPrincipaisScreen(model, { navInterno.navigate(Rotas.CRIAR) }, { navInterno.navigate(Rotas.repositorio(it)) }) }
-            composable(Rotas.EXPLORAR) { ExplorarScreen(model) { navInterno.navigate(Rotas.repositorio(it)) } }
+            composable(Rotas.EXPLORAR) {
+                ExplorarScreen(model,
+                    onRepositorio = { navInterno.navigate(Rotas.repositorio(it)) },
+                    onIssue = { navInterno.navigate(Rotas.issue(it)) })
+            }
             composable(Rotas.ISSUES, arguments = listOf(
                 navArgument("repositorioId") { type = NavType.IntType; defaultValue = -1 }
             )) { entry ->
@@ -137,7 +141,11 @@ fun AppNavigation(model: GithubViewModel = viewModel()) {
                     onNovaIssue = { navInterno.navigate(Rotas.criarIssue(it)) })
             }
             composable(Rotas.DETALHES_ISSUE, arguments = listOf(navArgument("id") { type = NavType.IntType })) { entry ->
-                DetalhesIssueScreen(model, entry.arguments?.getInt("id") ?: -1, { navInterno.navigate(Rotas.repositorio(it)) }, { navInterno.popBackStack() }, { navInterno.navigate(Rotas.editarIssue(it)) })
+                DetalhesIssueScreen(model, entry.arguments?.getInt("id") ?: -1,
+                    onRepositorio = { navInterno.navigate(Rotas.repositorio(it)) },
+                    onExcluido = { navInterno.popBackStack() },
+                    onEditar = { navInterno.navigate(Rotas.editarIssue(it)) },
+                    onVoltar = { navInterno.popBackStack() })
             }
         }
     }

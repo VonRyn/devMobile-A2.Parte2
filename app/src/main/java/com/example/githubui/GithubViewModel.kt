@@ -6,30 +6,38 @@ import androidx.lifecycle.ViewModel
 data class Repositorio(val id: Int, val nome: String, val descricao: String, val linguagem: String, val privado: Boolean)
 data class Issue(val id: Int, val repositorioId: Int, val titulo: String, val descricao: String, val concluida: Boolean = false)
 
-enum class AcaoRepositorio(val texto: String, val filtro: String) {
-    CRIADO("criou um repositório", "Criados"),
-    EDITADO("editou um repositório", "Editados"),
-    EXCLUIDO("excluiu um repositório", "Excluídos")
+enum class AcaoAtividade(val texto: String, val filtro: String) {
+    CRIADO("criou", "Criados"),
+    EDITADO("editou", "Editados"),
+    EXCLUIDO("excluiu", "Excluídos"),
+    CONCLUIDO("concluiu", "Concluídas"),
+    REABERTO("reabriu", "Reabertas")
 }
 
-data class AtividadeRepositorio(
+data class Atividade(
     val id: Int,
     val repositorio: Repositorio,
-    val acao: AcaoRepositorio,
-    val instante: Long = System.currentTimeMillis()
+    val acao: AcaoAtividade,
+    val instante: Long = System.currentTimeMillis(),
+    val issue: Issue? = null
 )
 
 // Estado compartilhado pelas telas. Não usa banco de dados nem arquivos.
 class GithubViewModel : ViewModel() {
     val repositorios = mutableStateListOf<Repositorio>()
     val issues = mutableStateListOf<Issue>()
-    val atividades = mutableStateListOf<AtividadeRepositorio>()
+    val atividades = mutableStateListOf<Atividade>()
     private var proximoRepo = 1
     private var proximaIssue = 1
     private var proximaAtividade = 1
 
-    private fun registrar(repo: Repositorio, acao: AcaoRepositorio) {
-        atividades.add(0, AtividadeRepositorio(proximaAtividade++, repo, acao))
+    private fun registrar(repo: Repositorio, acao: AcaoAtividade) {
+        atividades.add(0, Atividade(proximaAtividade++, repo, acao))
+    }
+
+    private fun registrarIssue(issue: Issue, acao: AcaoAtividade) {
+        val repo = repositorios.find { it.id == issue.repositorioId } ?: return
+        atividades.add(0, Atividade(proximaAtividade++, repo, acao, issue = issue))
     }
 
     fun validarRepositorio(id: Int?, nome: String, descricao: String): String? {
@@ -48,7 +56,7 @@ class GithubViewModel : ViewModel() {
         if (id == null) {
             val repo = Repositorio(proximoRepo++, nomeLimpo, descricao.trim(), linguagem.trim(), privado)
             repositorios.add(repo)
-            registrar(repo, AcaoRepositorio.CRIADO)
+            registrar(repo, AcaoAtividade.CRIADO)
         }
         else {
             val indice = repositorios.indexOfFirst { it.id == id }
@@ -56,25 +64,37 @@ class GithubViewModel : ViewModel() {
             val atualizado = Repositorio(id, nomeLimpo, descricao.trim(), linguagem.trim(), privado)
             if (repositorios[indice] != atualizado) {
                 repositorios[indice] = atualizado
-                registrar(atualizado, AcaoRepositorio.EDITADO)
+                registrar(atualizado, AcaoAtividade.EDITADO)
             }
         }
         return null
     }
     fun excluirRepositorio(id: Int) {
         val repo = repositorios.find { it.id == id } ?: return
-        registrar(repo, AcaoRepositorio.EXCLUIDO)
+        issues.filter { it.repositorioId == id }.forEach { excluirIssue(it.id) }
+        registrar(repo, AcaoAtividade.EXCLUIDO)
         repositorios.removeAll { it.id == id }
-        issues.removeAll { it.repositorioId == id }
     }
     fun adicionarIssue(repoId: Int, titulo: String, descricao: String): Boolean {
         if (titulo.isBlank() || repositorios.none { it.id == repoId }) return false
-        issues.add(Issue(proximaIssue++, repoId, titulo.trim(), descricao.trim()))
+        val issue = Issue(proximaIssue++, repoId, titulo.trim(), descricao.trim())
+        issues.add(issue)
+        registrarIssue(issue, AcaoAtividade.CRIADO)
         return true
     }
     fun alternarIssue(id: Int) {
         val indice = issues.indexOfFirst { it.id == id }
-        if (indice >= 0) issues[indice] = issues[indice].copy(concluida = !issues[indice].concluida)
+        if (indice >= 0) {
+            val atualizada = issues[indice].copy(concluida = !issues[indice].concluida)
+            issues[indice] = atualizada
+            registrarIssue(atualizada, if (atualizada.concluida) AcaoAtividade.CONCLUIDO else AcaoAtividade.REABERTO)
+        }
+    }
+
+    fun excluirIssue(id: Int) {
+        val issue = issues.find { it.id == id } ?: return
+        registrarIssue(issue, AcaoAtividade.EXCLUIDO)
+        issues.removeAll { it.id == id }
     }
 
     fun editarIssue(id: Int, repositorioId: Int, titulo: String, descricao: String): String? {
@@ -84,8 +104,13 @@ class GithubViewModel : ViewModel() {
         if (titulo.isBlank()) return "Informe o título da issue."
         if (titulo.length > 100) return "O título deve ter no máximo 100 caracteres."
         if (descricao.length > 350) return "A descrição deve ter no máximo 350 caracteres."
-        issues[indice] = issues[indice].copy(repositorioId = repositorioId, titulo = titulo.trim(), descricao = descricao.trim())
+        val atualizada = issues[indice].copy(repositorioId = repositorioId, titulo = titulo.trim(), descricao = descricao.trim())
+        if (issues[indice] != atualizada) {
+            issues[indice] = atualizada
+            registrarIssue(atualizada, AcaoAtividade.EDITADO)
+        }
         return null
     }
 }
+
 

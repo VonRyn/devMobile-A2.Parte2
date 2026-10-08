@@ -24,8 +24,8 @@ import kotlinx.coroutines.delay
 private val FundoAtividade = Color(0xFFF0F1F6)
 
 @Composable
-fun ExplorarScreen(model: GithubViewModel, onRepositorio: (Int) -> Unit) {
-    var filtro by rememberSaveable { mutableStateOf<AcaoRepositorio?>(null) }
+fun ExplorarScreen(model: GithubViewModel, onRepositorio: (Int) -> Unit, onIssue: (Int) -> Unit) {
+    var filtro by rememberSaveable { mutableStateOf<AcaoAtividade?>(null) }
     var menuAberto by remember { mutableStateOf(false) }
     var agora by remember { mutableLongStateOf(System.currentTimeMillis()) }
     LaunchedEffect(Unit) {
@@ -61,7 +61,7 @@ fun ExplorarScreen(model: GithubViewModel, onRepositorio: (Int) -> Unit) {
                     }
                     DropdownMenu(expanded = menuAberto, onDismissRequest = { menuAberto = false }) {
                         DropdownMenuItem(text = { Text("Todas") }, onClick = { filtro = null; menuAberto = false })
-                        AcaoRepositorio.entries.forEach { acao ->
+                        AcaoAtividade.entries.forEach { acao ->
                             DropdownMenuItem(text = { Text(acao.filtro) }, onClick = { filtro = acao; menuAberto = false })
                         }
                     }
@@ -72,11 +72,13 @@ fun ExplorarScreen(model: GithubViewModel, onRepositorio: (Int) -> Unit) {
             Text("Nenhuma atividade encontrada.", color = Muted, fontSize = 14.sp, modifier = Modifier.padding(16.dp))
         }
         items(atividades, key = { it.id }) { atividade ->
+            val issue = atividade.issue
             AtividadeCard(
                 atividade = atividade,
                 agora = agora,
-                existe = model.repositorios.any { it.id == atividade.repositorio.id },
-                onAbrir = { onRepositorio(atividade.repositorio.id) }
+                existe = if (issue == null) model.repositorios.any { it.id == atividade.repositorio.id }
+                    else model.issues.any { it.id == issue.id },
+                onAbrir = { if (issue == null) onRepositorio(atividade.repositorio.id) else onIssue(issue.id) }
             )
         }
     }
@@ -94,8 +96,9 @@ private fun DescobertaRow(icon: ImageVector, cor: Color, texto: String) {
 }
 
 @Composable
-private fun AtividadeCard(atividade: AtividadeRepositorio, agora: Long, existe: Boolean, onAbrir: () -> Unit) {
+private fun AtividadeCard(atividade: Atividade, agora: Long, existe: Boolean, onAbrir: () -> Unit) {
     val repo = atividade.repositorio
+    val issue = atividade.issue
     Column(Modifier.fillMaxWidth().padding(horizontal = 8.dp).padding(bottom = 24.dp)) {
         Row(Modifier.fillMaxWidth().padding(bottom = 12.dp), verticalAlignment = Alignment.CenterVertically) {
             Box(Modifier.size(36.dp).background(Color(0xFFDDE3EB), CircleShape), contentAlignment = Alignment.Center) {
@@ -103,7 +106,7 @@ private fun AtividadeCard(atividade: AtividadeRepositorio, agora: Long, existe: 
             }
             Spacer(Modifier.width(12.dp))
             Text("Você", color = Ink, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
-            Text(" ${atividade.acao.texto}", color = Muted, fontSize = 15.sp, modifier = Modifier.weight(1f))
+            Text(" ${atividade.acao.texto} ${if (issue == null) "um repositório" else "uma issue"}", color = Muted, fontSize = 15.sp, modifier = Modifier.weight(1f))
             Text(tempoDecorrido(atividade.instante, agora), color = Muted, fontSize = 12.sp, modifier = Modifier.padding(start = 8.dp))
         }
         Card(
@@ -116,19 +119,23 @@ private fun AtividadeCard(atividade: AtividadeRepositorio, agora: Long, existe: 
         ) {
             Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Outlined.Book, null, tint = Muted, modifier = Modifier.size(20.dp))
+                    Icon(if (issue == null) Icons.Outlined.Book else if (issue.concluida) Icons.Outlined.CheckCircleOutline else Icons.Outlined.Adjust,
+                        null, tint = if (issue == null) Muted else if (issue.concluida) Color(0xFF8250DF) else Green, modifier = Modifier.size(20.dp))
                     Spacer(Modifier.width(10.dp))
-                    Text(repo.nome, color = Ink, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
+                    Text(issue?.titulo ?: repo.nome, color = Ink, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
                 }
-                if (repo.descricao.isNotBlank()) Text(repo.descricao, color = Color(0xFF51565C), fontSize = 16.sp, lineHeight = 22.sp)
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                val descricao = issue?.descricao ?: repo.descricao
+                if (descricao.isNotBlank()) Text(descricao, color = Color(0xFF51565C), fontSize = 16.sp, lineHeight = 22.sp)
+                if (issue != null) {
+                    Text("${repo.nome} #${issue.id} · ${if (issue.concluida) "Concluída" else "Aberta"}", color = Muted, fontSize = 13.sp)
+                } else Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     if (repo.linguagem.isNotBlank()) {
                         Box(Modifier.size(9.dp).background(Color(0xFF8965C7), CircleShape))
                         Text(repo.linguagem, color = Muted, fontSize = 13.sp)
                     }
                     Text(if (repo.privado) "Privado" else "Público", color = Muted, fontSize = 13.sp)
                 }
-                if (!existe) Text("Repositório excluído", color = Muted, fontSize = 13.sp)
+                if (!existe) Text(if (issue == null) "Repositório excluído" else "Issue excluída", color = Muted, fontSize = 13.sp)
             }
         }
     }
@@ -149,8 +156,9 @@ internal fun tempoDecorrido(instante: Long, agora: Long): String {
 private fun ExplorarScreenPreview() {
     GithubPreview { model ->
         Column(Modifier.fillMaxSize().background(Color.White)) {
-            Box(Modifier.weight(1f)) { ExplorarScreen(model, onRepositorio = {}) }
+            Box(Modifier.weight(1f)) { ExplorarScreen(model, onRepositorio = {}, onIssue = {}) }
             BottomBar()
         }
     }
 }
+
