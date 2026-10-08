@@ -31,6 +31,7 @@ No projeto antigo, as telas abaixo apresentavam a estrutura visual inicial, com 
 #### Home antiga
 
 A Home apresentava as todos os icones das telas princial do GitHub.
+
 ![Home do Entrega 1](docs/imagens/entrega1-home.png)
 
 #### Explorar antiga
