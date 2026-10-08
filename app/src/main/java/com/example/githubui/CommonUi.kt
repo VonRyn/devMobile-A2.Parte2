@@ -1,6 +1,7 @@
 package com.example.githubui
 
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -71,11 +72,13 @@ internal fun BadgeIcon(
 internal fun MenuRow(
     icon: ImageVector,
     tint: Color,
-    label: String
+    label: String,
+    onClick: (() -> Unit)? = null
 ) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
+            .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
             .padding(horizontal = 20.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -116,7 +119,7 @@ internal fun SectionHeader(
 
 //Navbar
 @Composable
-internal fun BottomBar() {
+internal fun BottomBar(onHome: () -> Unit = {}, onExplorar: () -> Unit = {}) {
     Column {
         Divider(color = Line, thickness = 1.dp)
         Row(
@@ -125,17 +128,20 @@ internal fun BottomBar() {
                 .padding(top = 10.dp, bottom = 14.dp),
             horizontalArrangement = Arrangement.SpaceEvenly
         ) {
-            BottomBarItem(Icons.Outlined.Home, "Home")
+            BottomBarItem(Icons.Outlined.Home, "Home", onHome)
             BottomBarItem(Icons.Outlined.Email, "Inbox")
-            BottomBarItem(Icons.Outlined.Explore, "Explorar")
+            BottomBarItem(Icons.Outlined.Explore, "Explorar", onExplorar)
             BottomBarItem(Icons.Outlined.RadioButtonUnchecked, "Copilot")
         }
     }
 }
 
 @Composable
-private fun BottomBarItem(icon: ImageVector, label: String) {
-    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+private fun BottomBarItem(icon: ImageVector, label: String, onClick: (() -> Unit)? = null) {
+    Column(
+        modifier = if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier,
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
         Icon(
             imageVector = icon,
             contentDescription = null,
